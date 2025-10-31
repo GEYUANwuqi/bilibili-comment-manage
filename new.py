@@ -58,6 +58,8 @@ class BilibiliCommentManager:
                 logger.info("登录凭证已过期")
                 sync(self.credential.refresh())
                 logger.info("登录凭证已刷新")
+            else:
+                logger.info("登录凭证有效，无需刷新")
         except Exception as e:
             logger.error(f"刷新登录凭证时发生错误: {e}")
             logger.debug(traceback.format_exc())
@@ -72,6 +74,7 @@ class BilibiliCommentManager:
         if os.path.exists(self.violation_users_file):
             try:
                 with open(self.violation_users_file, 'r', encoding='utf-8') as f:
+                    logger.info("已加载违规用户信息")
                     return json.load(f)
             except Exception as e:
                 logger.error(f"加载违规用户信息失败: {e}")
@@ -81,6 +84,7 @@ class BilibiliCommentManager:
             # 初始化空的违规用户文件
             try:
                 with open(self.violation_users_file, 'w', encoding='utf-8') as f:
+                    logger.info("已创建违规用户文件")
                     json.dump([], f, ensure_ascii=False, indent=4)
                 return []
             except Exception as e:
@@ -253,7 +257,7 @@ class BilibiliCommentManager:
         except Exception as e:
             logger.error(f"获取评论 {rpid} 的子评论时发生错误: {e}")
             logger.debug(traceback.format_exc())
-            return []
+            raise e
 
     async def get_comments(self, max_pages=5) -> list[dict]:
         """
@@ -267,9 +271,9 @@ class BilibiliCommentManager:
         """
         comments = []
         page = 1
-
-        while True:
-            try:
+        try:
+            while True:
+            
                 logger.info(f"正在获取第 {page} 页评论")
                 c = await comment.get_comments(
                     self.av_id, 
@@ -280,17 +284,18 @@ class BilibiliCommentManager:
 
                 replies = c['replies']
                 if not replies:
-                    logger.info(f"共获取{page}页评论")
+                    logger.info(f"第 {page} 页没有评论，已结束")
+                    logger.info(f"共获取{page-1}页评论")
                     break
                 comments.extend(replies)
                 page += 1
                 if page > max_pages:
                     break
                 await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.error(f"获取评论时发生错误: {e}")
-                logger.debug(traceback.format_exc())
-                break
+        except Exception as e:
+            logger.error(f"获取评论时发生错误: {e}")
+            logger.debug(traceback.format_exc())
+            raise e
 
         return comments
 
